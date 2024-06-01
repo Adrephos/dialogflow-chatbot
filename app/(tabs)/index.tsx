@@ -1,70 +1,110 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { StyleSheet } from 'react-native';
+import { GiftedChat, IMessage } from 'react-native-gifted-chat';
+import { LinearGradient } from 'expo-linear-gradient';
+import { renderBubble, renderComposer, renderInputToolbar, renderTime } from '@/components/chatRenders';
+import axios from 'axios';
+import { getAccessToken } from '@/utils/Auth';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+const project_id = 'dialogflow-chatbot-425019'
+const location = 'global'
+const agent_id = '9500f60f-6f31-45b5-b23e-1e6142d4801d'
+
+async function sendMessage(messageText: string, session_id: string) {
+  const accessToken = getAccessToken();
+  const response = await axios.post(
+    `https://global-dialogflow.googleapis.com/v3/projects/${project_id}/locations/${location}/agents/${agent_id}/sessions/${session_id}:detectIntent`,
+    {
+      queryInput: {
+        text: {
+          text: messageText,
+        },
+        languageCode: 'en',
+      },
+      queryParams: {
+        timeZone: 'America/New_York',
+      }
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+  return response.data.queryResult.responseMessages[0].text.text[0];
+}
+
+
+interface User {
+  _id: number;
+  name: string;
+  avatar: string;
+}
+
+interface Message extends IMessage {
+  user: User;
+}
 
 export default function HomeScreen() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [session_id, setSessionId] = useState<string>('');
+
+  useEffect(() => {
+    setSessionId(Math.random().toString(36).substring(7));
+    setMessages([
+      {
+        _id: 1,
+        text: `ID de sesión: ${session_id}`,
+        createdAt: new Date(),
+        user: {
+          _id: 2,
+          name: 'React Native',
+          avatar: 'https://github.com/adrephos.png',
+        },
+      },
+    ]);
+  }, []);
+
+  const onSend = useCallback((messages: Message[] = []) => {
+    setMessages(previousMessages => GiftedChat.append(previousMessages, messages));
+    sendMessage(messages[0].text, session_id).then((response) => {
+      setMessages(previousMessages => GiftedChat.append(previousMessages, [{
+        _id: Math.random().toString(36).substring(7),
+        text: response,
+        createdAt: new Date(),
+        user: {
+          _id: 2,
+          name: 'React Native',
+          avatar: 'https://github.com/adrephos.png',
+        },
+      }]));
+    });
+  }, []);
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({ ios: 'cmd + d', android: 'cmd + m' })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <LinearGradient
+      colors={['#818ADA', '#3b5998', '#89B8E6']}
+      style={styles.container}
+    >
+      <GiftedChat
+        messages={messages}
+        onSend={(messages: Message[]) => onSend(messages)}
+        user={{
+          _id: 1,
+          name: 'Adrephos',
+        }}
+        renderBubble={renderBubble}
+        renderTime={renderTime}
+        renderInputToolbar={renderInputToolbar}
+        renderComposer={renderComposer}
+      />
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  container: {
+    flex: 1,
   },
 });
+
